@@ -2,13 +2,13 @@
 
 namespace BeyondCode\LaravelWebSockets\Tests\HttpApi;
 
-use Pusher\Pusher;
+use BeyondCode\LaravelWebSockets\HttpApi\Controllers\FetchChannelsController;
+use BeyondCode\LaravelWebSockets\Tests\Mocks\Connection;
+use BeyondCode\LaravelWebSockets\Tests\TestCase;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Http\JsonResponse;
-use BeyondCode\LaravelWebSockets\Tests\TestCase;
-use BeyondCode\LaravelWebSockets\Tests\Mocks\Connection;
+use Pusher\Pusher;
 use Symfony\Component\HttpKernel\Exception\HttpException;
-use BeyondCode\LaravelWebSockets\HttpApi\Controllers\FetchChannelsController;
 
 class FetchChannelsTest extends TestCase
 {
@@ -103,10 +103,10 @@ class FetchChannelsTest extends TestCase
     /** @test */
     public function it_returns_the_channel_information_for_prefix_with_user_count()
     {
-        $this->joinPresenceChannel('presence-global.1');
-        $this->joinPresenceChannel('presence-global.1');
-        $this->joinPresenceChannel('presence-global.2');
-        $this->joinPresenceChannel('presence-notglobal.2');
+        $this->joinPresenceChannel('presence-global.1', 'user:1');
+        $this->joinPresenceChannel('presence-global.1', 'user:2');
+        $this->joinPresenceChannel('presence-global.2', 'user:3');
+        $this->joinPresenceChannel('presence-notglobal.2', 'user:4');
 
         $connection = new Connection();
 

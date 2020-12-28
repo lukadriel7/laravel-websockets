@@ -2,13 +2,13 @@
 
 namespace BeyondCode\LaravelWebSockets\Tests\HttpApi;
 
-use Pusher\Pusher;
+use BeyondCode\LaravelWebSockets\HttpApi\Controllers\FetchChannelController;
+use BeyondCode\LaravelWebSockets\Tests\Mocks\Connection;
+use BeyondCode\LaravelWebSockets\Tests\TestCase;
 use GuzzleHttp\Psr7\Request;
 use Illuminate\Http\JsonResponse;
-use BeyondCode\LaravelWebSockets\Tests\TestCase;
-use BeyondCode\LaravelWebSockets\Tests\Mocks\Connection;
+use Pusher\Pusher;
 use Symfony\Component\HttpKernel\Exception\HttpException;
-use BeyondCode\LaravelWebSockets\HttpApi\Controllers\FetchChannelController;
 
 class FetchChannelTest extends TestCase
 {
@@ -63,6 +63,39 @@ class FetchChannelTest extends TestCase
         $this->assertSame([
             'occupied' => true,
             'subscription_count' => 2,
+        ], json_decode($response->getContent(), true));
+    }
+
+    /** @test */
+    public function it_returns_the_channel_information_for_presence_channel()
+    {
+        $this->joinPresenceChannel('presence-global', 'user:1');
+        $this->joinPresenceChannel('presence-global', 'user:2');
+        $this->joinPresenceChannel('presence-global', 'user:2');
+
+        $connection = new Connection();
+
+        $requestPath = '/apps/1234/channel/presence-global';
+        $routeParams = [
+            'appId' => '1234',
+            'channelName' => 'presence-global',
+        ];
+
+        $queryString = Pusher::build_auth_query_string('TestKey', 'TestSecret', 'GET', $requestPath);
+
+        $request = new Request('GET', "{$requestPath}?{$queryString}&".http_build_query($routeParams));
+
+        $controller = app(FetchChannelController::class);
+
+        $controller->onOpen($connection, $request);
+
+        /** @var JsonResponse $response */
+        $response = array_pop($connection->sentRawData);
+
+        $this->assertSame([
+            'occupied' => true,
+            'subscription_count' => 3,
+            'user_count' => 2,
         ], json_decode($response->getContent(), true));
     }
 

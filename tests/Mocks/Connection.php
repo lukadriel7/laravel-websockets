@@ -3,8 +3,8 @@
 namespace BeyondCode\LaravelWebSockets\Tests\Mocks;
 
 use GuzzleHttp\Psr7\Request;
-use Ratchet\ConnectionInterface;
 use PHPUnit\Framework\Assert as PHPUnit;
+use Ratchet\ConnectionInterface;
 
 class Connection implements ConnectionInterface
 {
@@ -26,6 +26,12 @@ class Connection implements ConnectionInterface
     public function close()
     {
         $this->closed = true;
+    }
+
+    public function resetEvents()
+    {
+        $this->sentData = [];
+        $this->sentRawData = [];
     }
 
     public function assertSentEvent(string $name, array $additionalParameters = [])

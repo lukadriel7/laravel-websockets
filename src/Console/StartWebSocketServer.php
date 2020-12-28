@@ -2,23 +2,23 @@
 
 namespace BeyondCode\LaravelWebSockets\Console;
 
-use React\Socket\Connector;
-use Clue\React\Buzz\Browser;
-use Illuminate\Console\Command;
-use React\Dns\Config\Config as DnsConfig;
-use React\Dns\Resolver\ResolverInterface;
-use React\EventLoop\Factory as LoopFactory;
-use React\Dns\Resolver\Factory as DnsFactory;
-use BeyondCode\LaravelWebSockets\Statistics\DnsResolver;
 use BeyondCode\LaravelWebSockets\Facades\StatisticsLogger;
 use BeyondCode\LaravelWebSockets\Facades\WebSocketsRouter;
-use BeyondCode\LaravelWebSockets\Server\Logger\HttpLogger;
-use BeyondCode\LaravelWebSockets\Server\WebSocketServerFactory;
 use BeyondCode\LaravelWebSockets\Server\Logger\ConnectionLogger;
+use BeyondCode\LaravelWebSockets\Server\Logger\HttpLogger;
 use BeyondCode\LaravelWebSockets\Server\Logger\WebsocketsLogger;
-use BeyondCode\LaravelWebSockets\WebSockets\Channels\ChannelManager;
-use BeyondCode\LaravelWebSockets\Statistics\Logger\HttpStatisticsLogger;
+use BeyondCode\LaravelWebSockets\Server\WebSocketServerFactory;
+use BeyondCode\LaravelWebSockets\Statistics\DnsResolver;
 use BeyondCode\LaravelWebSockets\Statistics\Logger\StatisticsLogger as StatisticsLoggerInterface;
+use BeyondCode\LaravelWebSockets\WebSockets\Channels\ChannelManager;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Cache;
+use React\Dns\Config\Config as DnsConfig;
+use React\Dns\Resolver\Factory as DnsFactory;
+use React\Dns\Resolver\ResolverInterface;
+use React\EventLoop\Factory as LoopFactory;
+use React\Http\Browser;
+use React\Socket\Connector;
 
 class StartWebSocketServer extends Command
 {
@@ -28,6 +28,9 @@ class StartWebSocketServer extends Command
 
     /** @var \React\EventLoop\LoopInterface */
     protected $loop;
+
+    /** @var int */
+    protected $lastRestart;
 
     public function __construct()
     {
@@ -43,6 +46,7 @@ class StartWebSocketServer extends Command
             ->configureHttpLogger()
             ->configureMessageLogger()
             ->configureConnectionLogger()
+            ->configureRestartTimer()
             ->registerEchoRoutes()
             ->registerCustomRoutes()
             ->startWebSocketServer();
@@ -61,7 +65,9 @@ class StartWebSocketServer extends Command
         $browser = new Browser($this->loop, $connector);
 
         app()->singleton(StatisticsLoggerInterface::class, function () use ($browser) {
-            return new HttpStatisticsLogger(app(ChannelManager::class), $browser);
+            $class = config('websockets.statistics.logger', \BeyondCode\LaravelWebSockets\Statistics\Logger\HttpStatisticsLogger::class);
+
+            return new $class(app(ChannelManager::class), $browser);
         });
 
         $this->loop->addPeriodicTimer(config('websockets.statistics.interval_in_seconds'), function () {
@@ -99,6 +105,19 @@ class StartWebSocketServer extends Command
             return (new ConnectionLogger($this->output))
                 ->enable(config('app.debug'))
                 ->verbose($this->output->isVerbose());
+        });
+
+        return $this;
+    }
+
+    public function configureRestartTimer()
+    {
+        $this->lastRestart = $this->getLastRestart();
+
+        $this->loop->addPeriodicTimer(10, function () {
+            if ($this->getLastRestart() !== $this->lastRestart) {
+                $this->loop->stop();
+            }
         });
 
         return $this;
@@ -149,5 +168,10 @@ class StartWebSocketServer extends Command
                 : '1.1.1.1',
             $this->loop
         );
+    }
+
+    protected function getLastRestart()
+    {
+        return Cache::get('beyondcode:websockets:restart', 0);
     }
 }
